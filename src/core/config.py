@@ -143,6 +143,72 @@ class RetryConfig(BaseModel):
     exponential_backoff: bool = True
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# UI Authentication config (browser-level login via Playwright)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class UIAuthCredentials(BaseModel):
+    """Login credentials for browser-based authentication."""
+    username: str = ""
+    password: str = ""
+
+
+class UIAuthSelectors(BaseModel):
+    """CSS selectors for locating login form elements."""
+    username: str = "input[name='email']"
+    password: str = "input[name='password']"
+    submit: str = "button[type='submit']"
+
+
+class PostLoginWait(BaseModel):
+    """Controls how long to wait after submitting the login form."""
+    network_idle: bool = True
+    timeout_ms: int = Field(default=5_000, ge=500, le=30_000)
+
+
+class UIAuthConfig(BaseModel):
+    """
+    Browser-level authentication config.
+
+    When enabled=True, UIEngine runs a Phase 0 login step before any other
+    tests. On success the Playwright storage state (cookies + localStorage) is
+    captured and injected into every subsequent BrowserContext so all test
+    modules run as the authenticated user.
+
+    The `success_indicator` field is required when enabled and should be either:
+      - A plain text string that must appear in the page body after login
+        (e.g. "Dashboard", "Welcome"), OR
+      - A CSS selector that must be present in the DOM after login
+        (e.g. "#user-menu", ".nav-authenticated")
+    """
+
+    enabled: bool = False
+    login_url: str = "/login"
+    success_indicator: str = ""
+    credentials: UIAuthCredentials = Field(default_factory=UIAuthCredentials)
+    selectors: UIAuthSelectors = Field(default_factory=UIAuthSelectors)
+    post_login_wait: PostLoginWait = Field(default_factory=PostLoginWait)
+
+    @model_validator(mode="after")
+    def validate_when_enabled(self) -> "UIAuthConfig":
+        """Ensure all required fields are present when auth is enabled."""
+        if self.enabled:
+            if not self.success_indicator:
+                raise ValueError(
+                    "'ui_auth.success_indicator' is required when ui_auth.enabled is true. "
+                    "Set it to a text string or CSS selector that appears after login."
+                )
+            if not self.credentials.username:
+                raise ValueError(
+                    "'ui_auth.credentials.username' is required when ui_auth.enabled is true."
+                )
+            if not self.credentials.password:
+                raise ValueError(
+                    "'ui_auth.credentials.password' is required when ui_auth.enabled is true."
+                )
+        return self
+
+
 class OutputConfig(BaseModel):
     dir: str = "outputs"
     formats: list[Literal["html", "json"]] = Field(default_factory=lambda: ["html", "json"])
@@ -168,6 +234,7 @@ class AppConfig(BaseModel):
 
     # Sub-configs
     auth: AuthConfig = Field(default_factory=AuthConfig)
+    ui_auth: UIAuthConfig = Field(default_factory=UIAuthConfig)
     rate_limit: RateLimitConfig = Field(default_factory=RateLimitConfig)
     timeouts: TimeoutConfig = Field(default_factory=TimeoutConfig)
     browser: BrowserConfig = Field(default_factory=BrowserConfig)

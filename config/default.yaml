@@ -8,7 +8,7 @@ target:
   url: ""                           # REQUIRED — set via CLI or scenario config
   test_depth: "standard"            # light | standard | full
 
-# ── Authentication ────────────────────────────────────────────────────────────
+# ── API-level Authentication (HTTP Basic / JWT / API Key) ─────────────────────
 auth:
   type: "none"                      # none | basic | jwt | api_key | bearer
   login_url: null
@@ -25,6 +25,38 @@ auth:
   #   type: "basic"
   #   username: "${QA_ADMIN_USER}"
   #   password: "${QA_ADMIN_PASS}"
+
+# ── Browser-level UI Authentication (Playwright login flow) ───────────────────
+# When enabled, UIEngine runs a Phase 0 login step before all other tests.
+# Cookies and localStorage are captured after login and injected into every
+# subsequent BrowserContext so all test modules run as the authenticated user.
+#
+# Set enabled: true and fill in credentials + selectors to activate.
+#
+ui_auth:
+  enabled: false
+
+  # Path or full URL of the login page
+  login_url: "/login"
+
+  # After login, confirm success by checking for this text OR CSS selector.
+  # Text example:   "Dashboard"        (any visible text on post-login page)
+  # Selector example: "#user-menu"     (element present in DOM after login)
+  # REQUIRED when enabled: true
+  success_indicator: ""
+
+  credentials:
+    username: "${TEST_USERNAME}"    # Set TEST_USERNAME in .env
+    password: "${TEST_PASSWORD}"    # Set TEST_PASSWORD in .env
+
+  selectors:
+    username: "input[name='email']"
+    password: "input[name='password']"
+    submit: "button[type='submit']"
+
+  post_login_wait:
+    network_idle: true              # Wait for network to go idle after submit
+    timeout_ms: 5000                # Max wait time after clicking submit
 
 # ── Rate Limiting & Concurrency ───────────────────────────────────────────────
 rate_limit:

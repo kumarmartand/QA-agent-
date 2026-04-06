@@ -50,6 +50,7 @@ from src.core.exceptions import UIEngineError
 from src.core.logger import bind_engine, get_logger
 from src.core.models import TestResult
 from src.engines.base import BaseEngine, EngineRegistry
+from src.engines.ui.auth import LoginHandler
 from src.engines.ui.tests.buttons import run_button_tests
 from src.engines.ui.tests.console_errors import run_console_error_tests
 from src.engines.ui.tests.navigation import NavigationCrawler
@@ -74,6 +75,7 @@ class UIEngine(BaseEngine):
         self._browser: Optional[object] = None
         self._screenshot_dir: Optional[Path] = None
         self._discovered_urls: list[str] = []
+        self._auth_state: Optional[dict] = None  # Captured after Phase 0 login
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -189,6 +191,53 @@ class UIEngine(BaseEngine):
             headless=self.config.browser.headless,
         )
 
+        # ── Phase 0: Browser authentication (optional) ────────────────────────
+        if self.config.ui_auth.enabled:  # type: ignore[attr-defined]
+            log.info(
+                "phase_start",
+                phase="authentication",
+                login_url=self.config.ui_auth.login_url,  # type: ignore[attr-defined]
+            )
+            handler = LoginHandler()
+            login_result = await handler.perform_login(
+                browser=self._browser,
+                config=self.config,
+                session_id=session.id,  # type: ignore[attr-defined]
+                screenshot_dir=self._screenshot_dir,
+            )
+
+            # Build a TestResult from the LoginResult so it flows through
+            # the normal reporting pipeline
+            auth_test = TestResult(
+                session_id=session.id,  # type: ignore[attr-defined]
+                engine=EngineType.UI,
+                test_name="Authentication: Browser Login",
+                test_url=url,
+                status=TestStatus.PASS if login_result.success else TestStatus.FAIL,
+                duration_ms=login_result.duration_ms,
+                error_message=login_result.error_message,
+                screenshot_path=login_result.screenshot_path,
+                metadata={
+                    "login_url": self.config.ui_auth.login_url,  # type: ignore[attr-defined]
+                    "success_indicator": self.config.ui_auth.success_indicator,  # type: ignore[attr-defined]
+                },
+            )
+            yield auth_test
+
+            if not login_result.success:
+                log.error(
+                    "auth_failed_aborting_ui_tests",
+                    login_url=self.config.ui_auth.login_url,  # type: ignore[attr-defined]
+                    error=login_result.error_message,
+                )
+                return   # Abort — no point running tests without a session
+
+            self._auth_state = login_result.storage_state
+            log.info(
+                "auth_complete_proceeding",
+                cookies=len((self._auth_state or {}).get("cookies", [])),
+            )
+
         # ── Phase 1: Root page load ───────────────────────────────────────────
         log.info("phase_start", phase="page_load", url=url)
         root_result = await run_page_load_test(
@@ -198,6 +247,7 @@ class UIEngine(BaseEngine):
             config=self.config,
             screenshot_dir=self._screenshot_dir,
             test_label=f"Page Load: {url}",
+            storage_state=self._auth_state,
         )
         yield root_result
 
@@ -217,6 +267,7 @@ class UIEngine(BaseEngine):
             session_id=session.id,  # type: ignore[attr-defined]
             config=self.config,
             screenshot_dir=self._screenshot_dir,
+            storage_state=self._auth_state,
         )
 
         async for result in crawler.crawl():
@@ -242,6 +293,7 @@ class UIEngine(BaseEngine):
                 urls=self._discovered_urls or [url],
                 config=self.config,
                 screenshot_dir=self._screenshot_dir,
+                storage_state=self._auth_state,
             ):
                 yield result
 
@@ -264,6 +316,7 @@ class UIEngine(BaseEngine):
                 urls=button_urls,
                 config=self.config,
                 screenshot_dir=self._screenshot_dir,
+                storage_state=self._auth_state,
             ):
                 yield result
 

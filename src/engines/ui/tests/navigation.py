@@ -92,11 +92,13 @@ class NavigationCrawler:
         session_id: str,
         config: object,
         screenshot_dir: Path,
+        storage_state: Optional[dict] = None,
     ) -> None:
         self.browser = browser
         self.session_id = session_id
         self.config = config
         self.screenshot_dir = screenshot_dir
+        self._storage_state = storage_state  # Injected into every new_context()
 
         depth_str = getattr(config.test_depth, "value", str(config.test_depth))
         self._max_depth, self._max_pages = _DEPTH_LIMITS.get(depth_str, (2, 20))
@@ -186,13 +188,17 @@ class NavigationCrawler:
         http_status: Optional[int] = None
         screenshot_path: Optional[str] = None
 
-        context = await self.browser.new_context(  # type: ignore[attr-defined]
-            viewport={
+        context_kwargs: dict = {
+            "viewport": {
                 "width": self.config.browser.viewport_width,
                 "height": self.config.browser.viewport_height,
             },
-            ignore_https_errors=True,
-        )
+            "ignore_https_errors": True,
+        }
+        if self._storage_state:
+            context_kwargs["storage_state"] = self._storage_state
+
+        context = await self.browser.new_context(**context_kwargs)  # type: ignore[attr-defined]
         page = await context.new_page()
 
         # Console listener BEFORE navigation

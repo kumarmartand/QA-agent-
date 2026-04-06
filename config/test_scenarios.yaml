@@ -10,6 +10,44 @@ target:
 auth:
   type: "none"
 
+# ── Browser UI Authentication ─────────────────────────────────────────────────
+# Uncomment and fill in to test login-protected applications.
+# Credentials are read from environment variables (set them in .env).
+#
+# Example for a Laravel / standard email+password login:
+#
+# ui_auth:
+#   enabled: true
+#   login_url: "/login"
+#   success_indicator: "Dashboard"   # Text visible on page after login
+#   credentials:
+#     username: "${TEST_USERNAME}"
+#     password: "${TEST_PASSWORD}"
+#   selectors:
+#     username: "input[name='email']"
+#     password: "input[name='password']"
+#     submit: "button[type='submit']"
+#   post_login_wait:
+#     network_idle: true
+#     timeout_ms: 5000
+#
+# Example using a CSS selector as success_indicator:
+#
+# ui_auth:
+#   enabled: true
+#   login_url: "/login"
+#   success_indicator: "#user-dropdown"   # DOM element present after login
+#   credentials:
+#     username: "${TEST_USERNAME}"
+#     password: "${TEST_PASSWORD}"
+#   selectors:
+#     username: "input[type='email']"
+#     password: "input[type='password']"
+#     submit: ".login-submit-btn"
+#   post_login_wait:
+#     network_idle: false   # Use domcontentloaded instead of networkidle
+#     timeout_ms: 8000
+
 # ── Custom Navigation Tests ───────────────────────────────────────────────────
 ui_tests:
   navigation:

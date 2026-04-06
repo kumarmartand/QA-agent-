@@ -124,6 +124,7 @@ async def run_console_error_tests(
     urls: list[str],
     config: object,
     screenshot_dir: Path,
+    storage_state: Optional[dict] = None,
 ):   # -> AsyncIterator[TestResult]
     """
     For each URL in `urls`, load the page and analyse its console output.
@@ -134,6 +135,11 @@ async def run_console_error_tests(
       FAIL  → One or more console.error() calls (after noise filtering)
       SKIP  → URL list was empty
       ERROR → Unexpected exception during testing
+
+    Args:
+        storage_state: Optional Playwright storage state from Phase 0 login.
+                       When provided, each browser context is initialised
+                       with it so pages are loaded as the authenticated user.
     """
     if not urls:
         log.debug("console_error_tests_skipped", reason="no_urls")
@@ -148,6 +154,7 @@ async def run_console_error_tests(
             url=url,
             config=config,
             screenshot_dir=screenshot_dir,
+            storage_state=storage_state,
         )
         yield result
 
@@ -161,6 +168,7 @@ async def _test_console_errors(
     url: str,
     config: object,
     screenshot_dir: Path,
+    storage_state: Optional[dict] = None,
 ) -> TestResult:
     """
     Load a single page and collect + classify its console output.
@@ -168,13 +176,17 @@ async def _test_console_errors(
     raw_messages: list[dict] = []
     screenshot_path: Optional[str] = None
 
-    context = await browser.new_context(  # type: ignore[attr-defined]
-        viewport={
+    context_kwargs: dict = {
+        "viewport": {
             "width": config.browser.viewport_width,
             "height": config.browser.viewport_height,
         },
-        ignore_https_errors=True,
-    )
+        "ignore_https_errors": True,
+    }
+    if storage_state:
+        context_kwargs["storage_state"] = storage_state
+
+    context = await browser.new_context(**context_kwargs)  # type: ignore[attr-defined]
     page = await context.new_page()
 
     # ── Console listener with source URL capture ──────────────────────────────

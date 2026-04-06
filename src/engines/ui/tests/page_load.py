@@ -91,6 +91,7 @@ async def run_page_load_test(
     config: object,
     screenshot_dir: Path,
     test_label: Optional[str] = None,
+    storage_state: Optional[dict] = None,
 ) -> TestResult:
     """
     Run a single page load test against `url`.
@@ -107,6 +108,10 @@ async def run_page_load_test(
         config:         AppConfig (for timeouts, browser settings, depth).
         screenshot_dir: Directory to save failure screenshots.
         test_label:     Optional human label override (defaults to URL path).
+        storage_state:  Optional Playwright storage state dict (cookies +
+                        localStorage) captured after login. When provided the
+                        browser context is initialised with this state so the
+                        page is loaded as the authenticated user.
 
     Returns:
         A fully populated TestResult.
@@ -118,14 +123,18 @@ async def run_page_load_test(
     console_errors: list[dict] = []
 
     # ── Create isolated browser context ──────────────────────────────────────
-    context = await browser.new_context(  # type: ignore[attr-defined]
-        viewport={
+    context_kwargs: dict = {
+        "viewport": {
             "width": config.browser.viewport_width,
             "height": config.browser.viewport_height,
         },
-        ignore_https_errors=True,     # Don't fail on self-signed certs
-        java_script_enabled=True,
-    )
+        "ignore_https_errors": True,     # Don't fail on self-signed certs
+        "java_script_enabled": True,
+    }
+    if storage_state:
+        context_kwargs["storage_state"] = storage_state
+
+    context = await browser.new_context(**context_kwargs)  # type: ignore[attr-defined]
 
     page = await context.new_page()
 

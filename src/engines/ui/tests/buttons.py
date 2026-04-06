@@ -81,6 +81,7 @@ async def run_button_tests(
     urls: list[str],
     config: object,
     screenshot_dir: Path,
+    storage_state: Optional[dict] = None,
 ):   # -> AsyncIterator[TestResult]
     """
     Test interactive buttons on all provided URLs.
@@ -93,6 +94,9 @@ async def run_button_tests(
                         all discovered URLs for full depth).
         config:         AppConfig.
         screenshot_dir: Directory for failure screenshots.
+        storage_state:  Optional Playwright storage state from Phase 0 login.
+                        When provided, each browser context is initialised
+                        with it so buttons are tested as the authenticated user.
     """
     if not urls:
         log.debug("button_tests_skipped", reason="no_urls")
@@ -107,6 +111,7 @@ async def run_button_tests(
             url=url,
             config=config,
             screenshot_dir=screenshot_dir,
+            storage_state=storage_state,
         ):
             yield result
 
@@ -117,6 +122,7 @@ async def _test_buttons_on_page(
     url: str,
     config: object,
     screenshot_dir: Path,
+    storage_state: Optional[dict] = None,
 ):   # -> AsyncIterator[TestResult]
     """
     Load a page, discover its buttons, and test each one.
@@ -125,13 +131,17 @@ async def _test_buttons_on_page(
     # ── Create a persistent context for this page's button tests ─────────────
     # We keep the same context across all button clicks on a page so that
     # app state (opened modals, expanded menus) persists between clicks.
-    context = await browser.new_context(  # type: ignore[attr-defined]
-        viewport={
+    context_kwargs: dict = {
+        "viewport": {
             "width": config.browser.viewport_width,
             "height": config.browser.viewport_height,
         },
-        ignore_https_errors=True,
-    )
+        "ignore_https_errors": True,
+    }
+    if storage_state:
+        context_kwargs["storage_state"] = storage_state
+
+    context = await browser.new_context(**context_kwargs)  # type: ignore[attr-defined]
     page = await context.new_page()
 
     # Track console errors throughout this page session
