@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QA Report — {{ summary.target_url }}</title>
+  <style>
+    /* ── Reset & Base ───────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --critical: #dc2626; --critical-bg: #fef2f2; --critical-border: #fca5a5;
+      --high:     #ea580c; --high-bg:     #fff7ed; --high-border:     #fdba74;
+      --medium:   #d97706; --medium-bg:   #fffbeb; --medium-border:   #fcd34d;
+      --low:      #16a34a; --low-bg:      #f0fdf4; --low-border:      #86efac;
+      --pass:     #16a34a; --fail:        #dc2626; --timeout: #7c3aed;
+      --navy:     #0f172a; --navy-light:  #1e293b;
+      --gray-50:  #f8fafc; --gray-100: #f1f5f9; --gray-200: #e2e8f0;
+      --gray-500: #64748b; --gray-700: #334155; --gray-900: #0f172a;
+      --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      --mono: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+      --radius: 8px; --shadow: 0 1px 3px rgba(0,0,0,.1), 0 1px 2px rgba(0,0,0,.06);
+      --shadow-md: 0 4px 6px rgba(0,0,0,.07), 0 2px 4px rgba(0,0,0,.06);
+    }
+    body { font-family: var(--font); background: var(--gray-50); color: var(--gray-900);
+           font-size: 14px; line-height: 1.6; }
+    a { color: #2563eb; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code { font-family: var(--mono); font-size: 12px; background: var(--gray-100);
+           padding: 2px 5px; border-radius: 3px; }
+    pre { font-family: var(--mono); font-size: 11px; background: var(--gray-900);
+          color: #e2e8f0; padding: 16px; border-radius: var(--radius);
+          overflow-x: auto; white-space: pre-wrap; word-break: break-all; }
+
+    /* ── Layout ─────────────────────────────────────────────────────────── */
+    .page-header {
+      background: linear-gradient(135deg, var(--navy) 0%, var(--navy-light) 100%);
+      color: white; padding: 32px 40px 28px;
+    }
+    .page-header h1 { font-size: 22px; font-weight: 700; letter-spacing: -.3px; }
+    .page-header .meta { margin-top: 6px; font-size: 13px; opacity: .75; display: flex;
+                         gap: 20px; flex-wrap: wrap; }
+    .page-header .meta span::before { content: '◆ '; font-size: 8px; }
+    .health-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.2);
+      border-radius: 20px; padding: 4px 14px; font-size: 13px; font-weight: 600;
+      margin-top: 12px;
+    }
+    .health-score { font-size: 20px; font-weight: 800; }
+    .health-score.good  { color: #4ade80; }
+    .health-score.warn  { color: #fbbf24; }
+    .health-score.poor  { color: #f87171; }
+    .main { max-width: 1100px; margin: 0 auto; padding: 28px 24px 60px; }
+
+    /* ── Stats dashboard ─────────────────────────────────────────────────── */
+    .stats-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 14px; margin-bottom: 32px;
+    }
+    .stat-card {
+      background: white; border: 1px solid var(--gray-200); border-radius: var(--radius);
+      padding: 16px 20px; box-shadow: var(--shadow);
+    }
+    .stat-card .num { font-size: 32px; font-weight: 800; line-height: 1; }
+    .stat-card .label { font-size: 12px; color: var(--gray-500); margin-top: 4px;
+                        text-transform: uppercase; letter-spacing: .5px; }
+    .stat-card.pass .num { color: var(--pass); }
+    .stat-card.fail .num { color: var(--fail); }
+    .stat-card.critical .num { color: var(--critical); }
+    .stat-card.duration .num { font-size: 22px; }
+    .pass-bar { display: flex; height: 6px; border-radius: 3px; overflow: hidden;
+                margin-top: 10px; background: var(--gray-200); }
+    .pass-bar .fill { background: var(--pass); transition: width .3s; }
+    .pass-bar .fill.low { background: var(--fail); }
+
+    /* ── Section titles ──────────────────────────────────────────────────── */
+    .section { margin-bottom: 36px; }
+    .section-title {
+      font-size: 16px; font-weight: 700; color: var(--gray-900);
+      padding-bottom: 10px; border-bottom: 2px solid var(--gray-200);
+      margin-bottom: 16px; display: flex; align-items: center; gap: 8px;
+    }
+    .section-title .count {
+      background: var(--gray-100); border: 1px solid var(--gray-200);
+      border-radius: 20px; font-size: 12px; font-weight: 600;
+      padding: 1px 10px; color: var(--gray-700);
+    }
+
+    /* ── Severity badges ─────────────────────────────────────────────────── */
+    .badge {
+      display: inline-block; font-size: 10px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .8px;
+      padding: 2px 8px; border-radius: 20px; white-space: nowrap;
+    }
+    .badge.critical { background: var(--critical-bg); color: var(--critical);
+                      border: 1px solid var(--critical-border); }
+    .badge.high     { background: var(--high-bg);     color: var(--high);
+                      border: 1px solid var(--high-border); }
+    .badge.medium   { background: var(--medium-bg);   color: var(--medium);
+                      border: 1px solid var(--medium-border); }
+    .badge.low      { background: var(--low-bg);      color: var(--low);
+                      border: 1px solid var(--low-border); }
+    .badge.pass     { background: #f0fdf4; color: var(--pass);
+                      border: 1px solid #86efac; }
+    .badge.fail     { background: #fef2f2; color: var(--fail);
+                      border: 1px solid #fca5a5; }
+    .badge.timeout  { background: #f5f3ff; color: var(--timeout);
+                      border: 1px solid #c4b5fd; }
+    .badge.error    { background: #fff1f2; color: #be123c;
+                      border: 1px solid #fda4af; }
+
+    /* ── Issue cards ─────────────────────────────────────────────────────── */
+    .issue-card {
+      background: white; border: 1px solid var(--gray-200);
+      border-radius: var(--radius); margin-bottom: 12px;
+      box-shadow: var(--shadow); overflow: hidden;
+      border-left: 4px solid var(--gray-200);
+    }
+    .issue-card.critical { border-left-color: var(--critical); }
+    .issue-card.high     { border-left-color: var(--high); }
+    .issue-card.medium   { border-left-color: var(--medium); }
+    .issue-card.low      { border-left-color: var(--low); }
+    .issue-header {
+      display: flex; align-items: center; gap: 10px; padding: 14px 16px;
+      cursor: pointer; user-select: none;
+    }
+    .issue-header:hover { background: var(--gray-50); }
+    .issue-title { flex: 1; font-weight: 600; font-size: 14px; }
+    .issue-meta { font-size: 11px; color: var(--gray-500);
+                  display: flex; gap: 12px; flex-wrap: wrap; }
+    .issue-meta span { white-space: nowrap; }
+    .chevron { color: var(--gray-500); font-size: 12px; transition: transform .2s; }
+    .issue-body { padding: 0 16px 16px; border-top: 1px solid var(--gray-100); }
+    .issue-body.collapsed { display: none; }
+    .issue-field { margin-top: 12px; }
+    .issue-field-label {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .5px; color: var(--gray-500); margin-bottom: 4px;
+    }
+    .affected-pages { display: flex; flex-wrap: wrap; gap: 6px; }
+    .page-chip {
+      background: var(--gray-100); border: 1px solid var(--gray-200);
+      border-radius: 4px; padding: 2px 8px; font-family: var(--mono); font-size: 11px;
+    }
+    .screenshot-container { margin-top: 8px; }
+    .screenshot-container img {
+      max-width: 100%; border: 1px solid var(--gray-200);
+      border-radius: var(--radius); cursor: pointer;
+      transition: box-shadow .15s;
+    }
+    .screenshot-container img:hover { box-shadow: var(--shadow-md); }
+
+    /* ── Timeline ────────────────────────────────────────────────────────── */
+    .timeline { display: flex; flex-direction: column; gap: 4px; }
+    .tl-row {
+      display: grid;
+      grid-template-columns: 40px 80px 160px 1fr 70px;
+      align-items: center; gap: 10px; padding: 7px 12px;
+      background: white; border: 1px solid var(--gray-200);
+      border-radius: 6px; font-size: 12px;
+    }
+    .tl-row:hover { background: var(--gray-50); }
+    .tl-engine { font-family: var(--mono); font-size: 10px; color: var(--gray-500);
+                 text-transform: uppercase; }
+    .tl-test { color: var(--gray-700); overflow: hidden; text-overflow: ellipsis;
+               white-space: nowrap; }
+    .tl-error { color: var(--fail); font-size: 11px; overflow: hidden;
+                text-overflow: ellipsis; white-space: nowrap; }
+    .tl-duration { text-align: right; color: var(--gray-500); font-family: var(--mono); }
+
+    /* ── Engine summary table ────────────────────────────────────────────── */
+    .engine-table { width: 100%; border-collapse: collapse; }
+    .engine-table th, .engine-table td {
+      padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--gray-200);
+    }
+    .engine-table th { font-size: 11px; text-transform: uppercase; letter-spacing: .5px;
+                       color: var(--gray-500); background: var(--gray-50); }
+    .engine-table tbody tr:hover { background: var(--gray-50); }
+    .engine-table .num { font-family: var(--mono); text-align: right; }
+    .engine-table .engine-name { font-weight: 700; text-transform: uppercase;
+                                 font-size: 12px; letter-spacing: .3px; }
+
+    /* ── Empty state ─────────────────────────────────────────────────────── */
+    .empty { text-align: center; padding: 40px; color: var(--gray-500); }
+    .empty .icon { font-size: 32px; margin-bottom: 8px; }
+
+    /* ── Footer ──────────────────────────────────────────────────────────── */
+    .footer {
+      text-align: center; padding: 20px; font-size: 11px; color: var(--gray-500);
+      border-top: 1px solid var(--gray-200); margin-top: 40px;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Page Header ──────────────────────────────────────────────────────── -->
+<div class="page-header">
+  <h1>🤖 QA Bot — Automated Test Report</h1>
+  <div class="meta">
+    <span>{{ summary.target_url }}</span>
+    <span>{{ generated_at }}</span>
+    <span>Session {{ session_id[:8] }}…</span>
+    <span>Depth: {{ test_depth | upper }}</span>
+  </div>
+  <div class="health-badge">
+    <span>Health Score</span>
+    <span class="health-score {% if summary.health_score >= 80 %}good{% elif summary.health_score >= 50 %}warn{% else %}poor{% endif %}">
+      {{ summary.health_score }}/100
+    </span>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- ── Stats Dashboard ─────────────────────────────────────────────────── -->
+  <div class="section">
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="num">{{ summary.total_tests }}</div>
+        <div class="label">Total Tests</div>
+        <div class="pass-bar">
+          <div class="fill {% if summary.pass_rate < 0.5 %}low{% endif %}"
+               style="width: {{ (summary.pass_rate * 100) | round | int }}%"></div>
+        </div>
+      </div>
+      <div class="stat-card pass">
+        <div class="num">{{ summary.total_passed }}</div>
+        <div class="label">Passed</div>
+      </div>
+      <div class="stat-card fail">
+        <div class="num">{{ summary.total_failed }}</div>
+        <div class="label">Failed</div>
+      </div>
+      <div class="stat-card critical">
+        <div class="num">{{ summary.total_bugs }}</div>
+        <div class="label">Unique Issues</div>
+      </div>
+      <div class="stat-card critical">
+        <div class="num">{{ summary.critical_bugs }}</div>
+        <div class="label">Critical</div>
+      </div>
+      <div class="stat-card">
+        <div class="num" style="color:#ea580c">{{ summary.high_bugs }}</div>
+        <div class="label">High</div>
+      </div>
+      <div class="stat-card duration">
+        <div class="num">{{ duration_formatted }}</div>
+        <div class="label">Duration</div>
+      </div>
+    </div>
+
+    <!-- Engine breakdown table -->
+    {% if summary.engine_summaries %}
+    <table class="engine-table">
+      <thead>
+        <tr>
+          <th>Engine</th>
+          <th class="num">Tests</th>
+          <th class="num">Passed</th>
+          <th class="num">Failed</th>
+          <th class="num">Errors</th>
+          <th class="num">Duration (ms)</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for eng in summary.engine_summaries %}
+        <tr>
+          <td><span class="engine-name">{{ eng.engine }}</span></td>
+          <td class="num">{{ eng.total }}</td>
+          <td class="num" style="color:var(--pass)">{{ eng.passed }}</td>
+          <td class="num" style="color:var(--fail)">{{ eng.failed }}</td>
+          <td class="num" style="color:#be123c">{{ eng.errors }}</td>
+          <td class="num">{{ eng.total_duration_ms | round | int }}</td>
+          <td>
+            {% if eng.engine_error %}
+              <span class="badge fail">Engine Error</span>
+            {% elif eng.failed == 0 and eng.errors == 0 %}
+              <span class="badge pass">✓ All Pass</span>
+            {% else %}
+              <span class="badge fail">Issues Found</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  </div>
+
+  <!-- ── Issues ──────────────────────────────────────────────────────────── -->
+  <div class="section">
+    <div class="section-title">
+      🐛 Issues Found
+      <span class="count">{{ issues | length }}</span>
+    </div>
+
+    {% if issues %}
+      {% for issue in issues %}
+      <div class="issue-card {{ issue.severity }}">
+        <div class="issue-header" onclick="toggleIssue('issue-{{ loop.index }}')">
+          <span class="badge {{ issue.severity }}">{{ issue.severity | upper }}</span>
+          <div class="issue-title">{{ issue.title }}</div>
+          <div class="issue-meta">
+            <span>📁 {{ issue.category | upper }}</span>
+            <span>🔄 {{ issue.occurrences }} occurrence{% if issue.occurrences != 1 %}s{% endif %}</span>
+            <span>📄 {{ issue.affected_pages | length }} page{% if issue.affected_pages | length != 1 %}s{% endif %}</span>
+          </div>
+          <span class="chevron" id="chev-issue-{{ loop.index }}">▼</span>
+        </div>
+        <div class="issue-body collapsed" id="issue-{{ loop.index }}">
+
+          {% if issue.error_message %}
+          <div class="issue-field">
+            <div class="issue-field-label">Error Message</div>
+            <code>{{ issue.error_message[:300] }}</code>
+          </div>
+          {% endif %}
+
+          {% if issue.root_cause %}
+          <div class="issue-field">
+            <div class="issue-field-label">Root Cause</div>
+            <p>{{ issue.root_cause }}</p>
+          </div>
+          {% endif %}
+
+          {% if issue.suggested_fix %}
+          <div class="issue-field">
+            <div class="issue-field-label">Suggested Fix</div>
+            <p style="color:var(--pass)">{{ issue.suggested_fix }}</p>
+          </div>
+          {% endif %}
+
+          <div class="issue-field">
+            <div class="issue-field-label">Affected Pages ({{ issue.affected_pages | length }})</div>
+            <div class="affected-pages">
+              {% for page in issue.affected_pages %}
+              <span class="page-chip">{{ page }}</span>
+              {% endfor %}
+            </div>
+          </div>
+
+          {% if issue.stack_trace %}
+          <div class="issue-field">
+            <div class="issue-field-label">Stack Trace</div>
+            <pre>{{ issue.stack_trace[:1200] }}</pre>
+          </div>
+          {% endif %}
+
+          {% if issue.screenshot_b64 %}
+          <div class="issue-field">
+            <div class="issue-field-label">Screenshot</div>
+            <div class="screenshot-container">
+              <img src="{{ issue.screenshot_b64 }}"
+                   alt="Screenshot at failure"
+                   onclick="window.open(this.src)" />
+            </div>
+          </div>
+          {% endif %}
+
+          <div class="issue-field">
+            <div class="issue-field-label" style="color:var(--gray-500)">
+              Issue Key: <code>{{ issue.issue_key }}</code>
+              &nbsp;·&nbsp; First seen: {{ issue.first_seen }}
+              &nbsp;·&nbsp; Last seen: {{ issue.last_seen }}
+            </div>
+          </div>
+
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="empty">
+        <div class="icon">✅</div>
+        <p>No issues found. All tests passed.</p>
+      </div>
+    {% endif %}
+  </div>
+
+  <!-- ── Timeline ────────────────────────────────────────────────────────── -->
+  <div class="section">
+    <div class="section-title">
+      📋 Test Timeline
+      <span class="count">{{ results | length }}</span>
+    </div>
+    <div class="timeline">
+      {% for r in results %}
+      <div class="tl-row">
+        <span class="badge {{ r.status }}">{{ r.status | upper }}</span>
+        <span class="tl-engine">{{ r.engine }}</span>
+        <span class="tl-test" title="{{ r.test_name }}">{{ r.test_name[:35] }}</span>
+        <span class="tl-error" title="{{ r.error_message or '' }}">
+          {{ r.error_message[:80] if r.error_message else '—' }}
+        </span>
+        <span class="tl-duration">{{ r.duration_ms | round | int }}ms</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+</div><!-- /main -->
+
+<div class="footer">
+  Generated by <strong>QA Bot</strong> · {{ generated_at }} · Session {{ session_id }}
+</div>
+
+<script>
+  // Collapse/expand issue cards
+  function toggleIssue(id) {
+    const body = document.getElementById(id);
+    const chev = document.getElementById('chev-' + id);
+    const isHidden = body.classList.contains('collapsed');
+    body.classList.toggle('collapsed', !isHidden);
+    chev.textContent = isHidden ? '▲' : '▼';
+    chev.style.transform = isHidden ? 'rotate(0deg)' : '';
+  }
+  // Auto-expand critical and high issues on page load
+  document.querySelectorAll('.issue-card.critical, .issue-card.high').forEach((card, i) => {
+    const body = card.querySelector('.issue-body');
+    const header = card.querySelector('.issue-header');
+    if (body && header) {
+      body.classList.remove('collapsed');
+      const chev = header.querySelector('.chevron');
+      if (chev) chev.textContent = '▲';
+    }
+  });
+</script>
+</body>
+</html>

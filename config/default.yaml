@@ -1,0 +1,92 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# QA Bot — Default Configuration
+# All values here are overridable via test_scenarios.yaml or CLI flags.
+# Environment variables can be injected using ${VAR_NAME} syntax.
+# ─────────────────────────────────────────────────────────────────────────────
+
+target:
+  url: ""                           # REQUIRED — set via CLI or scenario config
+  test_depth: "standard"            # light | standard | full
+
+# ── Authentication ────────────────────────────────────────────────────────────
+auth:
+  type: "none"                      # none | basic | jwt | api_key | bearer
+  login_url: null
+  username: null
+  password: null
+  token_field: "access_token"       # JSON key to extract from login response
+  api_key: null
+  api_key_header: "X-API-Key"
+  token_expiry_seconds: 3600
+
+  # Second login role (e.g., admin vs regular user)
+  second_login: null
+  # second_login:
+  #   type: "basic"
+  #   username: "${QA_ADMIN_USER}"
+  #   password: "${QA_ADMIN_PASS}"
+
+# ── Rate Limiting & Concurrency ───────────────────────────────────────────────
+rate_limit:
+  max_requests_per_second: 5
+  max_concurrent_tests: 3
+  request_delay_ms: 200
+
+# ── Timeouts (all in milliseconds) ───────────────────────────────────────────
+timeouts:
+  page_load_ms: 30000
+  action_ms: 10000                  # click / type / hover
+  api_request_ms: 10000
+  test_timeout_ms: 60000            # per individual test case
+  session_timeout_ms: 600000        # full run wall-clock limit
+
+# ── Browser Settings ──────────────────────────────────────────────────────────
+browser:
+  headless: true
+  browser_type: "chromium"          # chromium | firefox | webkit
+  viewport_width: 1280
+  viewport_height: 720
+  slow_mo_ms: 0                     # Slow down actions for debugging
+
+# ── API Testing ───────────────────────────────────────────────────────────────
+api:
+  enabled: true
+  openapi_url: "/openapi.json"      # Checked automatically; null to skip
+  har_file: null                    # Absolute path to .har file
+  crawl_depth: 2                    # Link-crawl depth for endpoint discovery
+  ignore_patterns:                  # URL patterns to skip during crawl
+    - "logout"
+    - "delete"
+    - "destroy"
+
+# ── Performance Testing ───────────────────────────────────────────────────────
+performance:
+  enabled: true
+  thresholds:
+    page_load_ms: 5000              # Warn if page takes longer
+    lcp_ms: 2500                    # Largest Contentful Paint
+    ttfb_ms: 800                    # Time to First Byte
+  lighthouse: false                 # Phase 3+ feature
+
+# ── AI Analysis ───────────────────────────────────────────────────────────────
+ai:
+  provider: "mock"                  # openai | claude | mock
+  model: "claude-opus-4-6"         # Used when provider is "claude"
+  openai_model: "gpt-4o"           # Used when provider is "openai"
+  max_tokens: 1024
+  temperature: 0.2                  # Low temp for consistent structured output
+
+# ── Retry Policy ──────────────────────────────────────────────────────────────
+retry:
+  max_attempts: 2
+  wait_seconds: 2
+  exponential_backoff: true
+
+# ── Output & Reporting ────────────────────────────────────────────────────────
+output:
+  dir: "outputs"
+  formats:                          # Formats to generate
+    - "html"
+    - "json"
+  screenshots_on_pass: false        # Also capture screenshots for passing tests
+  embed_screenshots: true           # Embed screenshots as base64 in HTML report

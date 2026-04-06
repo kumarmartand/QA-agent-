@@ -1,0 +1,83 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# QA Bot — Test Scenarios Configuration
+# Define custom test flows per application. This overrides default.yaml.
+# ─────────────────────────────────────────────────────────────────────────────
+
+target:
+  url: "https://demo.playwright.dev/todomvc"
+  test_depth: "full"
+
+auth:
+  type: "none"
+
+# ── Custom Navigation Tests ───────────────────────────────────────────────────
+ui_tests:
+  navigation:
+    # Explicit paths to visit beyond auto-discovered links
+    extra_paths:
+      - "/"
+      - "/about"
+      - "/login"
+
+  forms:
+    # Named form test cases
+    - name: "Contact form submission"
+      selector: "form#contact"
+      fields:
+        - { name: "email", value: "test@example.com" }
+        - { name: "message", value: "Automated QA test message" }
+      submit_selector: "button[type=submit]"
+      expected_text: "Thank you"
+
+  buttons:
+    # Buttons to explicitly test beyond auto-detection
+    - selector: "button.cta-primary"
+      name: "Primary CTA Button"
+    - selector: "nav button"
+      name: "Navigation buttons"
+
+  login_flows:
+    # Test multiple roles
+    - name: "Regular user login"
+      login_url: "/login"
+      username_selector: "input[name=email]"
+      password_selector: "input[name=password]"
+      submit_selector: "button[type=submit]"
+      username: "${QA_USERNAME}"
+      password: "${QA_PASSWORD}"
+      success_indicator: ".dashboard"   # CSS selector present after login
+      post_login_tests:
+        - "/dashboard"
+        - "/profile"
+        - "/settings"
+
+    - name: "Admin user login"
+      login_url: "/admin/login"
+      username_selector: "input[name=username]"
+      password_selector: "input[name=password]"
+      submit_selector: "button[type=submit]"
+      username: "${QA_ADMIN_USER}"
+      password: "${QA_ADMIN_PASS}"
+      success_indicator: ".admin-dashboard"
+      post_login_tests:
+        - "/admin/users"
+        - "/admin/settings"
+
+# ── Custom API Tests ──────────────────────────────────────────────────────────
+api_tests:
+  endpoints:
+    - name: "Health check"
+      method: "GET"
+      path: "/health"
+      expected_status: 200
+
+    - name: "List users"
+      method: "GET"
+      path: "/api/users"
+      expected_status: [200, 401]   # 401 is acceptable if auth required
+
+    - name: "Create user (negative test)"
+      method: "POST"
+      path: "/api/users"
+      body: {}
+      expected_status: [400, 422]   # Validation errors expected
